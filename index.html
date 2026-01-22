@@ -613,50 +613,97 @@
     MIN = norm.min; MAX = norm.max; STEP = norm.step;
   }
 
-  function drawNumberLine(){
-    ticksG.innerHTML = '';
-    labelsG.innerHTML = '';
+ function drawNumberLine(){
+  ticksG.innerHTML = '';
+  labelsG.innerHTML = '';
 
-    const stepsCount = Math.round((MAX - MIN)/STEP);
+  const stepsCount = Math.round((MAX - MIN)/STEP);
+  const isNarrow = window.matchMedia("(max-width: 420px)").matches;
 
-    const isNarrow = window.matchMedia("(max-width: 420px)").matches;
-    const majorEvery = isNarrow ? Math.max(2, Math.ceil(stepsCount / 6)) : Math.max(2, Math.ceil(stepsCount / 10));
+  // Smaller label font to reduce collisions
+  const fontSize = isNarrow ? 18 : 22;
 
-    for(let i=0;i<=stepsCount;i++){
-      const v = MIN + i*STEP;
-      const x = valueToX(v);
+  // Minimum pixel gap between label centers to avoid overlap
+  // (bigger font => bigger required gap)
+  const minGap = Math.max(70, fontSize * 3.6); // ~65–80+px
 
-      const isMajor = (i === 0) || (i === stepsCount) || (i % majorEvery === 0);
-      const h = isMajor ? 22 : 14;
-      const w = isMajor ? 5 : 4;
+  // Tick density for "major" ticks (still okay, labels will be collision-checked)
+  const majorEvery = isNarrow
+    ? Math.max(2, Math.ceil(stepsCount / 6))
+    : Math.max(2, Math.ceil(stepsCount / 10));
 
-      const tick = document.createElementNS("http://www.w3.org/2000/svg","line");
-      tick.setAttribute('x1', x);
-      tick.setAttribute('x2', x);
-      tick.setAttribute('y1', Y - h/2);
-      tick.setAttribute('y2', Y + h/2);
-      tick.setAttribute('stroke', '#0f172a');
-      tick.setAttribute('stroke-width', w);
-      tick.setAttribute('stroke-linecap','round');
-      ticksG.appendChild(tick);
+  let lastLabelX = -1e9;
+  let lastLabelEl = null;
 
-      if(isMajor){
-        const t = document.createElementNS("http://www.w3.org/2000/svg","text");
-        t.setAttribute('x', x);
-        t.setAttribute('y', 142);
-        t.setAttribute('text-anchor', 'middle');
-        t.setAttribute('font-size', isNarrow ? '22' : '28');
-        t.setAttribute('font-weight', '900');
-        t.setAttribute('fill', '#0f172a');
-        t.textContent = v;
-        labelsG.appendChild(t);
+  function addLabel(x, v, rowAlt){
+    const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute('x', x);
+    // stagger into 2 rows if needed
+    t.setAttribute('y', rowAlt ? 160 : 142);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-size', String(fontSize));
+    t.setAttribute('font-weight', '900');
+    t.setAttribute('fill', '#0f172a');
+    t.textContent = v;
+    labelsG.appendChild(t);
+    lastLabelX = x;
+    lastLabelEl = t;
+  }
+
+  // Draw ticks (all), but labels (some)
+  for(let i=0;i<=stepsCount;i++){
+    const v = MIN + i*STEP;
+    const x = valueToX(v);
+
+    const isEndpoint = (i === 0) || (i === stepsCount);
+    const isMajorCandidate = isEndpoint || (i % majorEvery === 0);
+
+    // Tick drawing
+    const isMajorTick = isEndpoint || (i % majorEvery === 0);
+    const h = isMajorTick ? 22 : 14;
+    const w = isMajorTick ? 5 : 4;
+
+    const tick = document.createElementNS("http://www.w3.org/2000/svg","line");
+    tick.setAttribute('x1', x);
+    tick.setAttribute('x2', x);
+    tick.setAttribute('y1', Y - h/2);
+    tick.setAttribute('y2', Y + h/2);
+    tick.setAttribute('stroke', '#0f172a');
+    tick.setAttribute('stroke-width', w);
+    tick.setAttribute('stroke-linecap','round');
+    ticksG.appendChild(tick);
+
+    // Label drawing with collision avoidance
+    if(isMajorCandidate){
+      // Always allow MIN label
+      if(i === 0){
+        addLabel(x, v, false);
+        continue;
+      }
+
+      // Always ensure MAX label appears (even if we need to replace the previous one)
+      if(i === stepsCount){
+        if(x - lastLabelX < minGap && lastLabelEl){
+          // Remove previous label so MAX doesn't overlap it
+          lastLabelEl.remove();
+        }
+        addLabel(x, v, false);
+        continue;
+      }
+
+      // For middle labels: only draw if far enough from previous label
+      if(x - lastLabelX >= minGap){
+        // stagger row when labels get dense
+        const rowAlt = ((Math.floor(i/majorEvery) % 2) === 1);
+        addLabel(x, v, rowAlt);
       }
     }
-
-    minLbl.textContent = MIN;
-    maxLbl.textContent = MAX;
-    stepLbl.textContent = STEP;
   }
+
+  minLbl.textContent = MIN;
+  maxLbl.textContent = MAX;
+  stepLbl.textContent = STEP;
+}
 
   function pickCorrectSign(a,b){
     if(a < b) return '<';
@@ -902,3 +949,4 @@
 </script>
 </body>
 </html>
+
