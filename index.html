@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1, viewport-fit=cover" />
+  <title>Compare Numbers — Number Line + Choose Sign + Choose Answer</title>
+  <style>
+    :root{
+      --bg:#f6fbff;
+      --card:#ffffff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --good:#16a34a;
+      --bad:#e11d48;
+      --pink:#ec4899;
+      --blue:#0ea5e9;
+      --shadow:0 12px 28px rgba(2,6,23,.10);
+      --radius:20px;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--font);
+      background:
+        radial-gradient(1200px 500px at 20% 0%, #e0f2fe 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 20%, #dcfce7 0%, transparent 55%),
+        var(--bg);
+      color:var(--ink);
+      padding:16px;
+      padding-left: max(12px, env(safe-area-inset-left));
+      padding-right:max(12px, env(safe-area-inset-right));
+      padding-top:  max(12px, env(safe-area-inset-top));
+      padding-bottom:max(16px, env(safe-area-inset-bottom));
+      overflow-x:hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+    .wrap{max-width:980px;margin:0 auto}
+    .card{
+      background:var(--card);
+      border:1px solid #eef2ff;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+
+    .header{
+      padding:14px 14px 10px;
+      border-bottom:1px solid #eef2ff;
+      display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    }
+    .tag{display:flex;align-items:center;gap:12px;min-width:220px}
+    .badge{
+      width:40px;height:40px;border-radius:999px;
+      display:grid;place-items:center;
+      background:linear-gradient(135deg,#bbf7d0,#86efac);
+      border:2px solid var(--good);
+      color:#065f46;
+      font-weight:900;
+      flex:0 0 auto;
+    }
+    .titleBlock .t1{font-size:18px;font-weight:900;line-height:1.1}
+    .titleBlock .t2{font-size:13px;font-weight:800;color:var(--muted);margin-top:4px}
+
+    .controls{
+      display:grid;
+      grid-template-columns: 1fr auto auto;
+      gap:10px;
+      align-items:center;
+      width:min(680px, 100%);
+    }
+    .mini{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding:8px 10px;
+      border:1px solid #e2e8f0;
+      border-radius:14px;
+      background:#fff;
+      font-weight:800;
+      color:var(--muted);
+      flex-wrap:wrap;
+    }
+    .mini input, .mini select{
+      font:inherit;
+      padding:8px 10px;
+      border-radius:12px;
+      border:1px solid #e2e8f0;
+      color:var(--ink);
+      background:#fff;
+      outline:none;
+      min-height:40px;
+    }
+    .mini input{width:110px; max-width:42vw}
+    .mini .sep{opacity:.7}
+
+    button{
+      appearance:none;border:0;
+      padding:12px 14px;
+      min-height:44px;
+      border-radius:14px;
+      background:var(--blue);color:#fff;
+      font-weight:900;cursor:pointer;
+      box-shadow:0 10px 18px rgba(14,165,233,.25);
+      white-space:nowrap;
+    }
+    button.secondary{
+      background:#f1f5f9;color:var(--ink);
+      box-shadow:none;border:1px solid #e2e8f0;
+    }
+    button:active{transform:translateY(1px)}
+    button:focus-visible, select:focus-visible, input:focus-visible{
+      outline:3px solid rgba(14,165,233,.35);
+      outline-offset:2px;
+    }
+
+    details.settings{
+      width:100%;
+      border:1px solid #e2e8f0;
+      border-radius:16px;
+      background:#fff;
+      overflow:hidden;
+    }
+    details.settings > summary{
+      list-style:none;
+      cursor:pointer;
+      padding:10px 12px;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      font-weight:900;
+      color:var(--ink);
+      user-select:none;
+    }
+    details.settings > summary::-webkit-details-marker{display:none}
+    .chev{font-weight:900;color:var(--muted)}
+    .settingsBody{padding:10px 12px;border-top:1px solid #e2e8f0}
+
+    .content{padding:16px}
+    .q{
+      font-size:clamp(18px, 2.6vw, 24px);
+      font-weight:900;
+      line-height:1.25;
+      margin:0 0 12px;
+    }
+    .q small{display:block;color:var(--muted);font-weight:800;margin-top:6px}
+
+    .lineBox{
+      background:linear-gradient(180deg,#e0f2fe, #eff6ff);
+      border:1px solid #c7d2fe;
+      border-radius:18px;
+      padding:12px 10px 10px;
+      overflow:hidden;
+    }
+    .svgWrap{
+      width:100%;
+      aspect-ratio: 900 / 170;
+      max-height: 240px;
+    }
+    #nl{
+      width:100%;
+      height:100%;
+      display:block;
+      touch-action:none;
+      -webkit-user-select:none;
+      user-select:none;
+    }
+    .hint{
+      margin:10px 2px 0;
+      color:var(--muted);
+      font-weight:800;
+      font-size:14px;
+    }
+
+    .compareRow{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:flex-start;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+    .bigNum{
+      font-size:clamp(24px, 4vw, 30px);
+      font-weight:1000;
+      letter-spacing:.2px;
+    }
+    .selectWrap{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border:2px dashed #cbd5e1;
+      border-radius:18px;
+      background:#fff;
+    }
+    select.bigSelect{
+      font:inherit;
+      font-weight:1000;
+      font-size:22px;
+      padding:10px 12px;
+      border-radius:14px;
+      border:2px solid #e2e8f0;
+      background:#f8fafc;
+      color:var(--ink);
+      outline:none;
+      min-width:110px;
+      min-height:44px;
+      text-align:center;
+      cursor:pointer;
+    }
+    select.bigSelect.good{
+      border-color:#86efac;
+      background:#f0fdf4;
+      color:#065f46;
+    }
+
+    .answerLine{
+      margin-top:12px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      font-weight:900;
+      font-size:18px;
+    }
+    .answerPick{
+      min-width:220px;
+      width:min(360px, 100%);
+      padding:10px 12px;
+      border-radius:14px;
+      border:2px solid #bbf7d0;
+      background:#f0fdf4;
+      color:#065f46;
+      font-weight:1000;
+      font-size:18px;
+      outline:none;
+      cursor:pointer;
+      min-height:44px;
+    }
+    .answerPick.placeholder{
+      color:#0f172a;
+      border-color:#cbd5e1;
+      background:#f8fafc;
+    }
+    .answerPick.good{
+      border-color:#86efac;
+      background:#dcfce7;
+      color:#065f46;
+    }
+
+    .msg{
+      margin-top:12px;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid #e2e8f0;
+      background:#f8fafc;
+      font-weight:900;
+    }
+    .msg.good{background:#f0fdf4;border-color:#bbf7d0;color:#065f46}
+    .msg.bad{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
+
+    .footerNote{
+      margin-top:14px;
+      color:#64748b;
+      font-weight:800;
+      font-size:13px;
+      text-align:right;
+    }
+
+    @media (max-width:720px){
+      .header{gap:10px}
+      .controls{
+        grid-template-columns: 1fr 1fr;
+        grid-auto-rows:minmax(44px, auto);
+      }
+      .controls > button{width:100%}
+      .mini{grid-column: 1 / -1}
+      .mini input{width:120px}
+    }
+    @media (max-width:420px){
+      .controls{grid-template-columns:1fr}
+      .controls > button{width:100%}
+      .bigNum{font-size:22px}
+      select.bigSelect{min-width:96px;font-size:20px}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="header">
+      <div class="tag">
+        <div class="badge" aria-hidden="true">✓</div>
+        <div class="titleBlock">
+          <div class="t1">Let’s Try!</div>
+          <div class="t2">Random: sometimes choose “smaller”, sometimes choose “greater”.</div>
+        </div>
+      </div>
+
+      <!-- Mobile settings -->
+      <details class="settings" id="settingsBox">
+        <summary>
+          <span>Teacher Settings</span>
+          <span class="chev">Tap to open/close ▾</span>
+        </summary>
+        <div class="settingsBody">
+          <div class="mini" title="Choose the number line range and step size">
+            Range:
+            <input id="minIn" type="number" value="7000" step="1" inputmode="numeric">
+            <span class="sep">–</span>
+            <input id="maxIn" type="number" value="8000" step="1" inputmode="numeric">
+            Step:
+            <select id="stepIn">
+              <!-- ✅ Steps: 1,2,5,10,20,25,50,100,200,250,500 -->
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="200">200</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+            </select>
+          </div>
+
+          <div class="controls" style="margin-top:10px">
+            <button id="newBtn" class="secondary" type="button">Random Question</button>
+            <button id="checkBtn" type="button">Check Answer</button>
+            <button id="hideSettingsBtn" class="secondary" type="button" title="Hide settings to make the question area bigger on mobile">Hide Settings</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Desktop quick controls -->
+      <div class="controls" id="topControls" aria-label="Quick controls">
+        <div class="mini" title="Choose the number line range and step size">
+          Range:
+          <input id="minIn2" type="number" value="7000" step="1" inputmode="numeric">
+          –
+          <input id="maxIn2" type="number" value="8000" step="1" inputmode="numeric">
+          Step:
+          <select id="stepIn2">
+            <!-- ✅ Steps: 1,2,5,10,20,25,50,100,200,250,500 -->
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="200">200</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+
+        <button id="newBtn2" class="secondary" type="button">Random Question</button>
+        <button id="checkBtn2" type="button">Check Answer</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <p class="q">
+        (a) Compare <span id="numA">7700</span> and <span id="numB">7200</span>.
+        <small>
+          Drag the markers. Select the correct sign. Then choose the correct number for:
+          <b id="promptWord">smaller</b>.
+        </small>
+      </p>
+
+      <div class="lineBox">
+        <div class="svgWrap">
+          <svg id="nl" viewBox="0 0 900 170" role="img" aria-label="Number line">
+            <rect x="0" y="0" width="900" height="170" rx="18" fill="rgba(255,255,255,.65)"></rect>
+
+            <line x1="70" y1="95" x2="830" y2="95" stroke="#0f172a" stroke-width="5" stroke-linecap="round"/>
+            <polygon points="60,95 78,84 78,106" fill="#0f172a"></polygon>
+            <polygon points="840,95 822,84 822,106" fill="#0f172a"></polygon>
+
+            <g id="ticks"></g>
+            <g id="labels"></g>
+
+            <g id="markerA" cursor="grab" style="touch-action:none">
+              <rect x="0" y="10" width="140" height="36" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="3"></rect>
+              <text id="labelA" x="70" y="35" text-anchor="middle" font-size="22" font-weight="900" fill="#065f46">7700</text>
+              <path d="M70 52 L70 78" stroke="#ec4899" stroke-width="5" stroke-linecap="round"></path>
+              <polygon points="70,84 62,72 78,72" fill="#ec4899"></polygon>
+            </g>
+
+            <g id="markerB" cursor="grab" style="touch-action:none">
+              <rect x="0" y="10" width="140" height="36" rx="14" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="3"></rect>
+              <text id="labelB" x="70" y="35" text-anchor="middle" font-size="22" font-weight="900" fill="#075985">7200</text>
+              <path d="M70 52 L70 78" stroke="#ec4899" stroke-width="5" stroke-linecap="round"></path>
+              <polygon points="70,84 62,72 78,72" fill="#ec4899"></polygon>
+            </g>
+          </svg>
+        </div>
+
+        <div class="hint">
+          Tip: The line goes from <b id="minLbl">7000</b> to <b id="maxLbl">8000</b>. Each tick is <b id="stepLbl">100</b>.
+        </div>
+      </div>
+
+      <div class="compareRow" aria-label="Compare using a sign">
+        <div class="bigNum" id="showA">7700</div>
+
+        <div class="selectWrap" aria-label="Choose the correct sign">
+          <select id="signSelect" class="bigSelect" aria-label="Select sign">
+            <option value="" selected>?</option>
+            <option value="<">&lt;</option>
+            <option value="=">=</option>
+            <option value=">">&gt;</option>
+          </select>
+        </div>
+
+        <div class="bigNum" id="showB">7200</div>
+      </div>
+
+      <div class="answerLine">
+        <select id="answerPick" class="answerPick placeholder" aria-label="Select the answer number">
+          <option value="" selected>Choose the answer…</option>
+          <option value="A" id="ansOptA">7700</option>
+          <option value="B" id="ansOptB">7200</option>
+        </select>
+        <span id="isWord">is smaller.</span>
+      </div>
+
+      <div id="msg" class="msg">Drag the markers, choose the sign, choose the final answer, then press <b>Check Answer</b>.</div>
+
+      <div class="footerNote">Designed by Lim Kim Sze © 2026</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const X1 = 70, X2 = 830, Y = 95;
+  const MARKER_W = 140;
+
+  const svg = document.getElementById('nl');
+  const ticksG = document.getElementById('ticks');
+  const labelsG = document.getElementById('labels');
+
+  const markerA = document.getElementById('markerA');
+  const markerB = document.getElementById('markerB');
+  const labelA  = document.getElementById('labelA');
+  const labelB  = document.getElementById('labelB');
+
+  const numAEl  = document.getElementById('numA');
+  const numBEl  = document.getElementById('numB');
+  const showAEl = document.getElementById('showA');
+  const showBEl = document.getElementById('showB');
+
+  const minLbl  = document.getElementById('minLbl');
+  const maxLbl  = document.getElementById('maxLbl');
+  const stepLbl = document.getElementById('stepLbl');
+
+  const minIn   = document.getElementById('minIn');
+  const maxIn   = document.getElementById('maxIn');
+  const stepIn  = document.getElementById('stepIn');
+
+  const minIn2  = document.getElementById('minIn2');
+  const maxIn2  = document.getElementById('maxIn2');
+  const stepIn2 = document.getElementById('stepIn2');
+
+  const signSelect = document.getElementById('signSelect');
+  const answerPick = document.getElementById('answerPick');
+  const ansOptA = document.getElementById('ansOptA');
+  const ansOptB = document.getElementById('ansOptB');
+
+  const promptWord = document.getElementById('promptWord');
+  const isWord = document.getElementById('isWord');
+
+  const msg = document.getElementById('msg');
+
+  const newBtn = document.getElementById('newBtn');
+  const checkBtn = document.getElementById('checkBtn');
+  const newBtn2 = document.getElementById('newBtn2');
+  const checkBtn2 = document.getElementById('checkBtn2');
+
+  const settingsBox = document.getElementById('settingsBox');
+  const hideSettingsBtn = document.getElementById('hideSettingsBtn');
+  const topControls = document.getElementById('topControls');
+
+  function syncControlVisibility(){
+    const mobile = window.matchMedia("(max-width: 720px)").matches;
+    settingsBox.style.display = mobile ? "block" : "none";
+    topControls.style.display = mobile ? "none" : "grid";
+  }
+
+  function copyVals(srcMin, srcMax, srcStep, dstMin, dstMax, dstStep){
+    dstMin.value = srcMin.value;
+    dstMax.value = srcMax.value;
+    dstStep.value = srcStep.value;
+  }
+  function syncMobileToDesktop(){ copyVals(minIn, maxIn, stepIn, minIn2, maxIn2, stepIn2); }
+  function syncDesktopToMobile(){ copyVals(minIn2, maxIn2, stepIn2, minIn, maxIn, stepIn); }
+
+  let MIN = 7000, MAX = 8000, STEP = 100;
+  let targetA = 7700;
+  let targetB = 7200;
+
+  let promptType = "smaller";
+
+  const state = {
+    A: { value: MIN, dragging:false, pointerId:null },
+    B: { value: MIN, dragging:false, pointerId:null },
+  };
+
+  const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
+  const snap  = (v)=>Math.round((v - MIN)/STEP)*STEP + MIN;
+
+  function valueToX(v){
+    const t = (v - MIN) / (MAX - MIN);
+    return X1 + t*(X2 - X1);
+  }
+  function xToValue(x){
+    const t = (x - X1) / (X2 - X1);
+    return MIN + t*(MAX - MIN);
+  }
+
+  function setMarker(group, which, v){
+    v = clamp(snap(v), MIN, MAX);
+    state[which].value = v;
+
+    const cx = valueToX(v);
+    const gx = clamp(cx - MARKER_W/2, X1 - MARKER_W/2, X2 - MARKER_W/2);
+    group.setAttribute('transform', `translate(${gx} 0)`);
+
+    const localX = cx - gx;
+    const path = group.querySelector('path');
+    const poly = group.querySelector('polygon');
+    path.setAttribute('d', `M${localX} 52 L${localX} 78`);
+    poly.setAttribute('points', `${localX},84 ${localX-8},72 ${localX+8},72`);
+  }
+
+  function normalizeRange(min, max, step){
+    min = Number.isFinite(min) ? min : 0;
+    step = Number.isFinite(step) && step > 0 ? step : 1;
+    if(!Number.isFinite(max) || max <= min) max = min + step * 10;
+
+    const rawSpan = max - min;
+    const k = Math.max(2, Math.round(rawSpan / step));
+    max = min + k * step;
+
+    return {min, max, step};
+  }
+
+  function drawNumberLine(){
+    ticksG.innerHTML = '';
+    labelsG.innerHTML = '';
+
+    const stepsCount = Math.floor((MAX - MIN)/STEP);
+
+    const isNarrow = window.matchMedia("(max-width: 420px)").matches;
+    const majorEvery = isNarrow ? Math.max(2, Math.ceil(stepsCount / 6)) : Math.max(2, Math.ceil(stepsCount / 10));
+
+    for(let i=0;i<=stepsCount;i++){
+      const v = MIN + i*STEP;
+      const x = valueToX(v);
+
+      const isMajor = (i === 0) || (i === stepsCount) || (i % majorEvery === 0);
+      const h = isMajor ? 22 : 14;
+      const w = isMajor ? 5 : 4;
+
+      const tick = document.createElementNS("http://www.w3.org/2000/svg","line");
+      tick.setAttribute('x1', x);
+      tick.setAttribute('x2', x);
+      tick.setAttribute('y1', Y - h/2);
+      tick.setAttribute('y2', Y + h/2);
+      tick.setAttribute('stroke', '#0f172a');
+      tick.setAttribute('stroke-width', w);
+      tick.setAttribute('stroke-linecap','round');
+      ticksG.appendChild(tick);
+
+      if(isMajor){
+        const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+        t.setAttribute('x', x);
+        t.setAttribute('y', 142);
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('font-size', isNarrow ? '22' : '28');
+        t.setAttribute('font-weight', '900');
+        t.setAttribute('fill', '#0f172a');
+        t.textContent = v;
+        labelsG.appendChild(t);
+      }
+    }
+
+    minLbl.textContent = MIN;
+    maxLbl.textContent = MAX;
+    stepLbl.textContent = STEP;
+  }
+
+  function pickCorrectSign(a,b){
+    if(a < b) return '<';
+    if(a > b) return '>';
+    return '=';
+  }
+
+  function resetDropdowns(){
+    signSelect.value = '';
+    signSelect.classList.remove('good');
+
+    answerPick.value = '';
+    answerPick.classList.remove('good');
+    answerPick.classList.add('placeholder');
+  }
+
+  function setPromptTypeRandom(){
+    promptType = (Math.random() < 0.5) ? "smaller" : "greater";
+    promptWord.textContent = promptType;
+    isWord.textContent = (promptType === "smaller") ? "is smaller." : "is greater.";
+  }
+
+  function setQuestion(a,b){
+    targetA = a; targetB = b;
+
+    numAEl.textContent = a;
+    numBEl.textContent = b;
+    showAEl.textContent = a;
+    showBEl.textContent = b;
+    labelA.textContent  = a;
+    labelB.textContent  = b;
+
+    ansOptA.textContent = a;
+    ansOptB.textContent = b;
+
+    resetDropdowns();
+    setPromptTypeRandom();
+
+    const n = Math.floor((MAX - MIN)/STEP) + 1;
+    const startA = MIN + Math.floor(Math.random()*n)*STEP;
+    const startB = MIN + Math.floor(Math.random()*n)*STEP;
+    setMarker(markerA,'A',startA);
+    setMarker(markerB,'B',startB);
+
+    msg.className = 'msg';
+    msg.textContent = `Drag the markers to ${a} and ${b}, choose the sign, then choose the ${promptType} number.`;
+  }
+
+  function getInputs(){
+    const mobile = window.matchMedia("(max-width: 720px)").matches;
+    return {
+      minEl: mobile ? minIn : minIn2,
+      maxEl: mobile ? maxIn : maxIn2,
+      stepEl: mobile ? stepIn : stepIn2,
+      mobile
+    };
+  }
+
+  function applyInputsToModel(){
+    const {minEl, maxEl, stepEl, mobile} = getInputs();
+
+    let min = parseInt(minEl.value,10);
+    let max = parseInt(maxEl.value,10);
+    let step = parseInt(stepEl.value,10);
+
+    const norm = normalizeRange(min, max, step);
+    MIN = norm.min; MAX = norm.max; STEP = norm.step;
+
+    minEl.value = MIN; maxEl.value = MAX; stepEl.value = STEP;
+    if(mobile) syncMobileToDesktop(); else syncDesktopToMobile();
+
+    drawNumberLine();
+  }
+
+  function randomQuestion(){
+    applyInputsToModel();
+
+    const count = Math.floor((MAX - MIN)/STEP) + 1;
+    const v1 = MIN + Math.floor(Math.random()*count)*STEP;
+    let v2 = MIN + Math.floor(Math.random()*count)*STEP;
+    while(v2 === v1) v2 = MIN + Math.floor(Math.random()*count)*STEP;
+
+    setQuestion(v1, v2);
+  }
+
+  function correctAnswerKey(){
+    if(promptType === "smaller"){
+      return (targetA < targetB) ? "A" : "B";
+    }else{
+      return (targetA > targetB) ? "A" : "B";
+    }
+  }
+
+  function check(){
+    const placedA = state.A.value;
+    const placedB = state.B.value;
+
+    const correctSign = pickCorrectSign(targetA, targetB);
+    const chosenSign = signSelect.value;
+
+    const okMarkers = (placedA === targetA) && (placedB === targetB);
+    const okSign = (chosenSign === correctSign);
+
+    const correctKey = correctAnswerKey();
+    const chosenKey = answerPick.value;
+    const okAnswer = (chosenKey === correctKey);
+
+    signSelect.classList.toggle('good', chosenSign !== '' && okSign);
+
+    if(chosenKey){
+      answerPick.classList.remove('placeholder');
+      answerPick.classList.toggle('good', okAnswer);
+    }else{
+      answerPick.classList.add('placeholder');
+      answerPick.classList.remove('good');
+    }
+
+    const targetSmaller = Math.min(targetA, targetB);
+    const targetGreater = Math.max(targetA, targetB);
+    const targetChosenValue = (promptType === "smaller") ? targetSmaller : targetGreater;
+
+    if(okMarkers && okSign && okAnswer){
+      msg.className = 'msg good';
+      msg.textContent = `✅ Correct! ${targetA} ${correctSign} ${targetB}. ${targetChosenValue} is ${promptType}. Well done!`;
+    }else{
+      msg.className = 'msg bad';
+      const hints = [];
+      if(!okMarkers) hints.push(`Check your marker positions (each tick is ${STEP}).`);
+      if(!chosenSign) hints.push(`Select a sign.`);
+      else if(!okSign) hints.push(`Re-check the sign.`);
+      if(!chosenKey) hints.push(`Select the ${promptType} number.`);
+      else if(!okAnswer) hints.push(`Re-check your final answer.`);
+      msg.textContent = `❌ Not yet. ${hints.join(' ')}`;
+    }
+  }
+
+  function pointerToSvgX(evt){
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    const ctm = svg.getScreenCTM();
+    if(!ctm) return X1;
+    const svgP = pt.matrixTransform(ctm.inverse());
+    return svgP.x;
+  }
+
+  function attachDrag(group, which){
+    group.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      group.setPointerCapture(e.pointerId);
+      state[which].dragging = true;
+      state[which].pointerId = e.pointerId;
+      group.setAttribute('cursor','grabbing');
+    });
+
+    group.addEventListener('pointermove', (e) => {
+      if(!state[which].dragging) return;
+      setMarker(group, which, xToValue(pointerToSvgX(e)));
+    });
+
+    const end = (e) => {
+      if(state[which].pointerId !== e.pointerId) return;
+      state[which].dragging = false;
+      state[which].pointerId = null;
+      group.setAttribute('cursor','grab');
+    };
+    group.addEventListener('pointerup', end);
+    group.addEventListener('pointercancel', end);
+    group.addEventListener('lostpointercapture', () => {
+      state[which].dragging = false;
+      state[which].pointerId = null;
+      group.setAttribute('cursor','grab');
+    });
+  }
+
+  function initSettingsState(){
+    settingsBox.open = false;
+    syncControlVisibility();
+  }
+
+  newBtn.addEventListener('click', randomQuestion);
+  checkBtn.addEventListener('click', check);
+  newBtn2.addEventListener('click', randomQuestion);
+  checkBtn2.addEventListener('click', check);
+
+  [minIn, maxIn, stepIn].forEach(el => el.addEventListener('change', () => { syncMobileToDesktop(); applyInputsToModel(); }));
+  [minIn2, maxIn2, stepIn2].forEach(el => el.addEventListener('change', () => { syncDesktopToMobile(); applyInputsToModel(); }));
+
+  hideSettingsBtn.addEventListener('click', () => {
+    settingsBox.open = false;
+    document.querySelector('.content').scrollIntoView({behavior:'smooth', block:'start'});
+  });
+
+  answerPick.addEventListener('change', () => {
+    if(answerPick.value){
+      answerPick.classList.remove('placeholder');
+    }else{
+      answerPick.classList.add('placeholder');
+      answerPick.classList.remove('good');
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    syncControlVisibility();
+    drawNumberLine();
+  });
+
+  // Init
+  initSettingsState();
+  syncMobileToDesktop();
+  applyInputsToModel();
+
+  attachDrag(markerA,'A');
+  attachDrag(markerB,'B');
+  setQuestion(7700, 7200);
+})();
+</script>
+</body>
+</html>
