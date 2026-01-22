@@ -314,7 +314,6 @@
             <input id="maxIn" type="number" value="8000" step="1" inputmode="numeric">
             Step:
             <select id="stepIn">
-              <!-- ✅ Steps: 1,2,5,10,20,25,50,100,200,250,500 -->
               <option value="1">1</option>
               <option value="2">2</option>
               <option value="5">5</option>
@@ -346,7 +345,6 @@
           <input id="maxIn2" type="number" value="8000" step="1" inputmode="numeric">
           Step:
           <select id="stepIn2">
-            <!-- ✅ Steps: 1,2,5,10,20,25,50,100,200,250,500 -->
             <option value="1">1</option>
             <option value="2">2</option>
             <option value="5">5</option>
@@ -503,10 +501,10 @@
   function syncMobileToDesktop(){ copyVals(minIn, maxIn, stepIn, minIn2, maxIn2, stepIn2); }
   function syncDesktopToMobile(){ copyVals(minIn2, maxIn2, stepIn2, minIn, maxIn, stepIn); }
 
+  // ---- MODEL ----
   let MIN = 7000, MAX = 8000, STEP = 100;
   let targetA = 7700;
   let targetB = 7200;
-
   let promptType = "smaller";
 
   const state = {
@@ -515,7 +513,16 @@
   };
 
   const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
-  const snap  = (v)=>Math.round((v - MIN)/STEP)*STEP + MIN;
+
+  // ✅ alignment helpers (prevents grid-offset bugs)
+  const alignDown = (n, step) => Math.floor(n / step) * step;
+  const alignUp   = (n, step) => Math.ceil(n / step) * step;
+
+  // ✅ snap is integer-safe
+  function snapToStep(v){
+    const q = Math.round((v - MIN) / STEP);
+    return MIN + q * STEP;
+  }
 
   function valueToX(v){
     const t = (v - MIN) / (MAX - MIN);
@@ -527,7 +534,7 @@
   }
 
   function setMarker(group, which, v){
-    v = clamp(snap(v), MIN, MAX);
+    v = clamp(snapToStep(v), MIN, MAX);
     state[which].value = v;
 
     const cx = valueToX(v);
@@ -542,22 +549,75 @@
   }
 
   function normalizeRange(min, max, step){
-    min = Number.isFinite(min) ? min : 0;
-    step = Number.isFinite(step) && step > 0 ? step : 1;
-    if(!Number.isFinite(max) || max <= min) max = min + step * 10;
+    step = Number.isFinite(step) && step > 0 ? Math.round(step) : 1;
+    min  = Number.isFinite(min)  ? Math.round(min) : 0;
+    max  = Number.isFinite(max)  ? Math.round(max) : (min + step * 10);
 
-    const rawSpan = max - min;
-    const k = Math.max(2, Math.round(rawSpan / step));
+    if(max <= min) max = min + step * 10;
+
+    // align endpoints to step grid
+    min = alignDown(min, step);
+    max = alignUp(max, step);
+
+    // ensure at least 10 segments (11 points)
+    if((max - min) < step * 10){
+      max = min + step * 10;
+    }
+
+    // clamp to 0..9999 (primary-friendly)
+    min = Math.max(0, min);
+    max = Math.min(9999, max);
+
+    // if clamping shrunk the span, re-expand (still aligned)
+    if((max - min) < step * 10){
+      if(min === 0){
+        max = Math.min(9999, min + step * 10);
+      }else{
+        min = Math.max(0, max - step * 10);
+        min = alignDown(min, step);
+        max = min + step * 10;
+        if(max > 9999){
+          max = 9999;
+          max = alignUp(max, step);
+          min = Math.max(0, max - step * 10);
+          min = alignDown(min, step);
+        }
+      }
+    }
+
+    // final: force exact divisibility
+    const k = Math.round((max - min) / step);
     max = min + k * step;
 
     return {min, max, step};
+  }
+
+  // ✅ auto-build a clean range around targets
+  function autoRangeAround(a, b){
+    const lo = Math.min(a,b);
+    const hi = Math.max(a,b);
+
+    const padSteps = 2;
+    const needSteps = Math.max(10, Math.ceil((hi - lo) / STEP) + padSteps*2);
+
+    let min = alignDown(lo - padSteps * STEP, STEP);
+    let max = min + needSteps * STEP;
+
+    if(max < hi + padSteps * STEP){
+      max = alignUp(hi + padSteps * STEP, STEP);
+      const k = Math.max(10, Math.round((max - min)/STEP));
+      max = min + k*STEP;
+    }
+
+    const norm = normalizeRange(min, max, STEP);
+    MIN = norm.min; MAX = norm.max; STEP = norm.step;
   }
 
   function drawNumberLine(){
     ticksG.innerHTML = '';
     labelsG.innerHTML = '';
 
-    const stepsCount = Math.floor((MAX - MIN)/STEP);
+    const stepsCount = Math.round((MAX - MIN)/STEP);
 
     const isNarrow = window.matchMedia("(max-width: 420px)").matches;
     const majorEvery = isNarrow ? Math.max(2, Math.ceil(stepsCount / 6)) : Math.max(2, Math.ceil(stepsCount / 10));
@@ -635,7 +695,7 @@
     resetDropdowns();
     setPromptTypeRandom();
 
-    const n = Math.floor((MAX - MIN)/STEP) + 1;
+    const n = Math.round((MAX - MIN)/STEP) + 1;
     const startA = MIN + Math.floor(Math.random()*n)*STEP;
     const startB = MIN + Math.floor(Math.random()*n)*STEP;
     setMarker(markerA,'A',startA);
@@ -671,14 +731,33 @@
     drawNumberLine();
   }
 
+  // ✅ pick targets ALWAYS on STEP grid
+  function pickTwoTargetsOnGrid(){
+    const lo = 0, hi = 9999;
+
+    const minGrid = alignUp(lo, STEP);
+    const maxGrid = alignDown(hi, STEP);
+    const count = Math.floor((maxGrid - minGrid) / STEP) + 1;
+
+    let v1 = minGrid + Math.floor(Math.random()*count)*STEP;
+    let v2 = minGrid + Math.floor(Math.random()*count)*STEP;
+    while(v2 === v1) v2 = minGrid + Math.floor(Math.random()*count)*STEP;
+
+    return {v1, v2};
+  }
+
   function randomQuestion(){
     applyInputsToModel();
 
-    const count = Math.floor((MAX - MIN)/STEP) + 1;
-    const v1 = MIN + Math.floor(Math.random()*count)*STEP;
-    let v2 = MIN + Math.floor(Math.random()*count)*STEP;
-    while(v2 === v1) v2 = MIN + Math.floor(Math.random()*count)*STEP;
+    const {v1, v2} = pickTwoTargetsOnGrid();
 
+    autoRangeAround(v1, v2);
+
+    // push new aligned auto-range into both UIs
+    minIn.value = MIN; maxIn.value = MAX; stepIn.value = STEP;
+    minIn2.value = MIN; maxIn2.value = MAX; stepIn2.value = STEP;
+
+    drawNumberLine();
     setQuestion(v1, v2);
   }
 
@@ -782,8 +861,13 @@
   newBtn2.addEventListener('click', randomQuestion);
   checkBtn2.addEventListener('click', check);
 
-  [minIn, maxIn, stepIn].forEach(el => el.addEventListener('change', () => { syncMobileToDesktop(); applyInputsToModel(); }));
-  [minIn2, maxIn2, stepIn2].forEach(el => el.addEventListener('change', () => { syncDesktopToMobile(); applyInputsToModel(); }));
+  // Range MIN/MAX change: just align + redraw
+  [minIn, maxIn].forEach(el => el.addEventListener('change', () => { syncMobileToDesktop(); applyInputsToModel(); }));
+  [minIn2, maxIn2].forEach(el => el.addEventListener('change', () => { syncDesktopToMobile(); applyInputsToModel(); }));
+
+  // ✅ STEP change: align + immediately generate a fresh random question
+  stepIn.addEventListener('change', () => { syncMobileToDesktop(); randomQuestion(); });
+  stepIn2.addEventListener('change', () => { syncDesktopToMobile(); randomQuestion(); });
 
   hideSettingsBtn.addEventListener('click', () => {
     settingsBox.open = false;
@@ -811,9 +895,10 @@
 
   attachDrag(markerA,'A');
   attachDrag(markerB,'B');
-  setQuestion(7700, 7200);
+
+  // Start with a clean on-grid, auto-ranged question
+  randomQuestion();
 })();
 </script>
 </body>
 </html>
-
