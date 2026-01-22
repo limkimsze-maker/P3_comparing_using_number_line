@@ -501,10 +501,10 @@
   function syncMobileToDesktop(){ copyVals(minIn, maxIn, stepIn, minIn2, maxIn2, stepIn2); }
   function syncDesktopToMobile(){ copyVals(minIn2, maxIn2, stepIn2, minIn, maxIn, stepIn); }
 
-  // ---- MODEL ----
   let MIN = 7000, MAX = 8000, STEP = 100;
   let targetA = 7700;
   let targetB = 7200;
+
   let promptType = "smaller";
 
   const state = {
@@ -513,16 +513,7 @@
   };
 
   const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
-
-  // ✅ alignment helpers (prevents grid-offset bugs)
-  const alignDown = (n, step) => Math.floor(n / step) * step;
-  const alignUp   = (n, step) => Math.ceil(n / step) * step;
-
-  // ✅ snap is integer-safe
-  function snapToStep(v){
-    const q = Math.round((v - MIN) / STEP);
-    return MIN + q * STEP;
-  }
+  const snap  = (v)=>Math.round((v - MIN)/STEP)*STEP + MIN;
 
   function valueToX(v){
     const t = (v - MIN) / (MAX - MIN);
@@ -534,7 +525,7 @@
   }
 
   function setMarker(group, which, v){
-    v = clamp(snapToStep(v), MIN, MAX);
+    v = clamp(snap(v), MIN, MAX);
     state[which].value = v;
 
     const cx = valueToX(v);
@@ -549,161 +540,61 @@
   }
 
   function normalizeRange(min, max, step){
-    step = Number.isFinite(step) && step > 0 ? Math.round(step) : 1;
-    min  = Number.isFinite(min)  ? Math.round(min) : 0;
-    max  = Number.isFinite(max)  ? Math.round(max) : (min + step * 10);
+    min = Number.isFinite(min) ? min : 0;
+    step = Number.isFinite(step) && step > 0 ? step : 1;
+    if(!Number.isFinite(max) || max <= min) max = min + step * 10;
 
-    if(max <= min) max = min + step * 10;
-
-    // align endpoints to step grid
-    min = alignDown(min, step);
-    max = alignUp(max, step);
-
-    // ensure at least 10 segments (11 points)
-    if((max - min) < step * 10){
-      max = min + step * 10;
-    }
-
-    // clamp to 0..9999 (primary-friendly)
-    min = Math.max(0, min);
-    max = Math.min(9999, max);
-
-    // if clamping shrunk the span, re-expand (still aligned)
-    if((max - min) < step * 10){
-      if(min === 0){
-        max = Math.min(9999, min + step * 10);
-      }else{
-        min = Math.max(0, max - step * 10);
-        min = alignDown(min, step);
-        max = min + step * 10;
-        if(max > 9999){
-          max = 9999;
-          max = alignUp(max, step);
-          min = Math.max(0, max - step * 10);
-          min = alignDown(min, step);
-        }
-      }
-    }
-
-    // final: force exact divisibility
-    const k = Math.round((max - min) / step);
+    const rawSpan = max - min;
+    const k = Math.max(2, Math.round(rawSpan / step));
     max = min + k * step;
 
     return {min, max, step};
   }
 
-  // ✅ auto-build a clean range around targets
-  function autoRangeAround(a, b){
-    const lo = Math.min(a,b);
-    const hi = Math.max(a,b);
+  function drawNumberLine(){
+    ticksG.innerHTML = '';
+    labelsG.innerHTML = '';
 
-    const padSteps = 2;
-    const needSteps = Math.max(10, Math.ceil((hi - lo) / STEP) + padSteps*2);
+    const stepsCount = Math.floor((MAX - MIN)/STEP);
 
-    let min = alignDown(lo - padSteps * STEP, STEP);
-    let max = min + needSteps * STEP;
+    const isNarrow = window.matchMedia("(max-width: 420px)").matches;
+    const majorEvery = isNarrow ? Math.max(2, Math.ceil(stepsCount / 6)) : Math.max(2, Math.ceil(stepsCount / 10));
 
-    if(max < hi + padSteps * STEP){
-      max = alignUp(hi + padSteps * STEP, STEP);
-      const k = Math.max(10, Math.round((max - min)/STEP));
-      max = min + k*STEP;
-    }
+    for(let i=0;i<=stepsCount;i++){
+      const v = MIN + i*STEP;
+      const x = valueToX(v);
 
-    const norm = normalizeRange(min, max, STEP);
-    MIN = norm.min; MAX = norm.max; STEP = norm.step;
-  }
+      const isMajor = (i === 0) || (i === stepsCount) || (i % majorEvery === 0);
+      const h = isMajor ? 22 : 14;
+      const w = isMajor ? 5 : 4;
 
- function drawNumberLine(){
-  ticksG.innerHTML = '';
-  labelsG.innerHTML = '';
+      const tick = document.createElementNS("http://www.w3.org/2000/svg","line");
+      tick.setAttribute('x1', x);
+      tick.setAttribute('x2', x);
+      tick.setAttribute('y1', Y - h/2);
+      tick.setAttribute('y2', Y + h/2);
+      tick.setAttribute('stroke', '#0f172a');
+      tick.setAttribute('stroke-width', w);
+      tick.setAttribute('stroke-linecap','round');
+      ticksG.appendChild(tick);
 
-  const stepsCount = Math.round((MAX - MIN)/STEP);
-  const isNarrow = window.matchMedia("(max-width: 420px)").matches;
-
-  // Smaller label font to reduce collisions
-  const fontSize = isNarrow ? 18 : 22;
-
-  // Minimum pixel gap between label centers to avoid overlap
-  // (bigger font => bigger required gap)
-  const minGap = Math.max(70, fontSize * 3.6); // ~65–80+px
-
-  // Tick density for "major" ticks (still okay, labels will be collision-checked)
-  const majorEvery = isNarrow
-    ? Math.max(2, Math.ceil(stepsCount / 6))
-    : Math.max(2, Math.ceil(stepsCount / 10));
-
-  let lastLabelX = -1e9;
-  let lastLabelEl = null;
-
-  function addLabel(x, v, rowAlt){
-    const t = document.createElementNS("http://www.w3.org/2000/svg","text");
-    t.setAttribute('x', x);
-    // stagger into 2 rows if needed
-    t.setAttribute('y', rowAlt ? 160 : 142);
-    t.setAttribute('text-anchor', 'middle');
-    t.setAttribute('font-size', String(fontSize));
-    t.setAttribute('font-weight', '900');
-    t.setAttribute('fill', '#0f172a');
-    t.textContent = v;
-    labelsG.appendChild(t);
-    lastLabelX = x;
-    lastLabelEl = t;
-  }
-
-  // Draw ticks (all), but labels (some)
-  for(let i=0;i<=stepsCount;i++){
-    const v = MIN + i*STEP;
-    const x = valueToX(v);
-
-    const isEndpoint = (i === 0) || (i === stepsCount);
-    const isMajorCandidate = isEndpoint || (i % majorEvery === 0);
-
-    // Tick drawing
-    const isMajorTick = isEndpoint || (i % majorEvery === 0);
-    const h = isMajorTick ? 22 : 14;
-    const w = isMajorTick ? 5 : 4;
-
-    const tick = document.createElementNS("http://www.w3.org/2000/svg","line");
-    tick.setAttribute('x1', x);
-    tick.setAttribute('x2', x);
-    tick.setAttribute('y1', Y - h/2);
-    tick.setAttribute('y2', Y + h/2);
-    tick.setAttribute('stroke', '#0f172a');
-    tick.setAttribute('stroke-width', w);
-    tick.setAttribute('stroke-linecap','round');
-    ticksG.appendChild(tick);
-
-    // Label drawing with collision avoidance
-    if(isMajorCandidate){
-      // Always allow MIN label
-      if(i === 0){
-        addLabel(x, v, false);
-        continue;
-      }
-
-      // Always ensure MAX label appears (even if we need to replace the previous one)
-      if(i === stepsCount){
-        if(x - lastLabelX < minGap && lastLabelEl){
-          // Remove previous label so MAX doesn't overlap it
-          lastLabelEl.remove();
-        }
-        addLabel(x, v, false);
-        continue;
-      }
-
-      // For middle labels: only draw if far enough from previous label
-      if(x - lastLabelX >= minGap){
-        // stagger row when labels get dense
-        const rowAlt = ((Math.floor(i/majorEvery) % 2) === 1);
-        addLabel(x, v, rowAlt);
+      if(isMajor){
+        const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+        t.setAttribute('x', x);
+        t.setAttribute('y', 142);
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('font-size', isNarrow ? '22' : '28');
+        t.setAttribute('font-weight', '900');
+        t.setAttribute('fill', '#0f172a');
+        t.textContent = v;
+        labelsG.appendChild(t);
       }
     }
-  }
 
-  minLbl.textContent = MIN;
-  maxLbl.textContent = MAX;
-  stepLbl.textContent = STEP;
-}
+    minLbl.textContent = MIN;
+    maxLbl.textContent = MAX;
+    stepLbl.textContent = STEP;
+  }
 
   function pickCorrectSign(a,b){
     if(a < b) return '<';
@@ -742,7 +633,7 @@
     resetDropdowns();
     setPromptTypeRandom();
 
-    const n = Math.round((MAX - MIN)/STEP) + 1;
+    const n = Math.floor((MAX - MIN)/STEP) + 1;
     const startA = MIN + Math.floor(Math.random()*n)*STEP;
     const startB = MIN + Math.floor(Math.random()*n)*STEP;
     setMarker(markerA,'A',startA);
@@ -778,35 +669,49 @@
     drawNumberLine();
   }
 
-  // ✅ pick targets ALWAYS on STEP grid
+  // =========================
+  // ✅ INSERTED FIX START
+  // =========================
+
+  // ✅ pick targets ONLY from the current teacher range MIN..MAX on the STEP grid
   function pickTwoTargetsOnGrid(){
-    const lo = 0, hi = 9999;
+    const minGrid = MIN;
+    const maxGrid = MAX;
+    const count = Math.round((maxGrid - minGrid) / STEP) + 1;
 
-    const minGrid = alignUp(lo, STEP);
-    const maxGrid = alignDown(hi, STEP);
-    const count = Math.floor((maxGrid - minGrid) / STEP) + 1;
+    // safety: if somehow not enough points, expand the range a little
+    if(count < 2){
+      MAX = MIN + STEP * 10;
+      drawNumberLine();
+      return { v1: MIN, v2: MIN + STEP };
+    }
 
-    let v1 = minGrid + Math.floor(Math.random()*count)*STEP;
-    let v2 = minGrid + Math.floor(Math.random()*count)*STEP;
-    while(v2 === v1) v2 = minGrid + Math.floor(Math.random()*count)*STEP;
-
-    return {v1, v2};
+    let v1 = minGrid + Math.floor(Math.random() * count) * STEP;
+    let v2 = minGrid + Math.floor(Math.random() * count) * STEP;
+    while(v2 === v1){
+      v2 = minGrid + Math.floor(Math.random() * count) * STEP;
+    }
+    return { v1, v2 };
   }
 
   function randomQuestion(){
+    // read & normalize teacher inputs (align to STEP grid)
     applyInputsToModel();
 
-    const {v1, v2} = pickTwoTargetsOnGrid();
+    // ✅ targets guaranteed inside [MIN, MAX]
+    const { v1, v2 } = pickTwoTargetsOnGrid();
 
-    autoRangeAround(v1, v2);
-
-    // push new aligned auto-range into both UIs
+    // keep UI inputs synced (both mobile + desktop)
     minIn.value = MIN; maxIn.value = MAX; stepIn.value = STEP;
     minIn2.value = MIN; maxIn2.value = MAX; stepIn2.value = STEP;
 
     drawNumberLine();
     setQuestion(v1, v2);
   }
+
+  // =========================
+  // ✅ INSERTED FIX END
+  // =========================
 
   function correctAnswerKey(){
     if(promptType === "smaller"){
@@ -908,13 +813,8 @@
   newBtn2.addEventListener('click', randomQuestion);
   checkBtn2.addEventListener('click', check);
 
-  // Range MIN/MAX change: just align + redraw
-  [minIn, maxIn].forEach(el => el.addEventListener('change', () => { syncMobileToDesktop(); applyInputsToModel(); }));
-  [minIn2, maxIn2].forEach(el => el.addEventListener('change', () => { syncDesktopToMobile(); applyInputsToModel(); }));
-
-  // ✅ STEP change: align + immediately generate a fresh random question
-  stepIn.addEventListener('change', () => { syncMobileToDesktop(); randomQuestion(); });
-  stepIn2.addEventListener('change', () => { syncDesktopToMobile(); randomQuestion(); });
+  [minIn, maxIn, stepIn].forEach(el => el.addEventListener('change', () => { syncMobileToDesktop(); applyInputsToModel(); }));
+  [minIn2, maxIn2, stepIn2].forEach(el => el.addEventListener('change', () => { syncDesktopToMobile(); applyInputsToModel(); }));
 
   hideSettingsBtn.addEventListener('click', () => {
     settingsBox.open = false;
@@ -942,11 +842,8 @@
 
   attachDrag(markerA,'A');
   attachDrag(markerB,'B');
-
-  // Start with a clean on-grid, auto-ranged question
-  randomQuestion();
+  setQuestion(7700, 7200);
 })();
 </script>
 </body>
 </html>
-
